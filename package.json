@@ -1,0 +1,48 @@
+{
+  "name": "easybuild-admin",
+  "version": "1.0.3",
+  "description": "CLI tool to scaffold EasyBuild Admin (易构) projects from a remote template",
+  "type": "module",
+  "bin": {
+    "easybuild-admin": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "cli",
+    "scaffold",
+    "nextjs",
+    "easybuild",
+    "admin"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "degit": "^2.8.4",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.3.0",
+    "ora": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.14.0",
+    "tsup": "^8.1.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0"
+  }
+}
