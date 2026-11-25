@@ -57,9 +57,12 @@ npx easybuild-admin my-project -d "项目描述" --pm yarn --skip-install -y
 | `--skip-install` | 跳过依赖安装 | `false` |
 | `--skip-git` | 跳过 Git 初始化 | `false` |
 | `-y, --yes` | 全部使用默认值，不进行任何交互（用于 CI） | `false` |
+| `--json` | 输出一行机器可读 JSON（stdout 仅一行、隐含非交互，适合 AI Agent） | `false` |
 | `--repo <repo>` | 自定义模板仓库，可用 `#分支或tag` 指定版本 | `easybuild-jack/easybuild-admin-front` |
 
 > **交互与 CI**：命令行已给出的参数不会再提问；加 `-y` 会全部使用默认值（默认初始化 Git 并安装依赖，可用 `--skip-git` / `--skip-install` 关闭）。若 stdin 不是 TTY 且仍有问题需要交互，CLI 会直接报错并提示补齐参数，而不是卡住或崩溃。
+
+> **AI Agent / 自动化**：加 `--json` 后 stdout 只输出一行 JSON（`ok`、`project.path`、`template`、`git`、`dependencies`、`durationMs`，失败时 `error.code`），进度与提示全部静默；`--json` 隐含非交互，需配合 `-y` 或参数齐全。完整契约、错误码与提示词模板见 [使用手册第 10 节](./docs/前端脚手架使用手册.md#10-ai-agent-调用指南)。
 
 > **默认拉取最新发布版**：CLI 会先解析模板仓库的最新正式 Release tag（不含 pre-release / draft），再按该 tag 下载模板，保证脚手架产出的项目来自经过发布的稳定代码。若解析失败（离线或网络受限），会提示并使用仓库默认分支。需要某个具体版本或分支时，用 `--repo owner/repo#v1.0.0` 覆盖。
 

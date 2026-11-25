@@ -1,5 +1,7 @@
 import degit from "degit";
-import ora from "ora";
+
+import { CliError } from "./errors.js";
+import { spinner as startSpinner } from "./output.js";
 
 interface DownloadOptions {
   repo: string;   // 格式: "owner/repo"
@@ -54,21 +56,21 @@ export async function downloadAndExtract(options: DownloadOptions): Promise<void
   const source = ref ? `${repo}#${ref}` : repo;
   const label = ref ? `${repo}@${ref}` : repo;
 
-  const spinner = ora(`正在从 GitHub 下载模板 (${label})...`).start();
+  const progress = startSpinner(`正在从 GitHub 下载模板 (${label})...`);
 
   try {
     const emitter = degit(source, { cache: false, force: true });
 
     emitter.on("info", (info) => {
-      spinner.text = info.message;
+      progress.text = info.message;
     });
 
     await emitter.clone(dest);
 
-    spinner.succeed("模板下载完成");
+    progress.succeed("模板下载完成");
   } catch (err) {
-    spinner.fail("模板下载失败");
+    progress.fail("模板下载失败");
     // 错误详情统一由调用方打印，这里只把原因翻译成人话
-    throw new Error(describeDownloadError(err, label, ref), { cause: err });
+    throw new CliError("DOWNLOAD_FAILED", describeDownloadError(err, label, ref), { cause: err });
   }
 }

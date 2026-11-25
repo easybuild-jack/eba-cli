@@ -1,14 +1,22 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execSync, spawn, spawnSync } from "node:child_process";
-import ora from "ora";
 import chalk from "chalk";
 import { logger } from "./logger.js";
+import { CliError } from "./errors.js";
+import { print, spinner as startSpinner } from "./output.js";
 import type { PackageManager } from "../constants.js";
 
 interface ProjectMeta {
   name: string;
   description: string;
+}
+
+/** git 初始化的结果，用于 --json 报告 */
+export interface GitResult {
+  skipped: boolean;
+  initialized: boolean;
+  committed: boolean;
 }
 
 interface RunResult {
@@ -125,14 +133,17 @@ export async function replacePackageMeta(projectDir: string, meta: ProjectMeta):
   try {
     raw = await readFile(pkgPath, "utf-8");
   } catch {
-    throw new Error(`模板中缺少 package.json（${pkgPath}），下载的模板可能不完整`);
+    throw new CliError(
+      "TEMPLATE_INVALID",
+      `模板中缺少 package.json（${pkgPath}），下载的模板可能不完整`,
+    );
   }
 
   let pkg: Record<string, unknown>;
   try {
     pkg = JSON.parse(raw);
   } catch {
-    throw new Error(`模板中的 package.json 不是合法 JSON（${pkgPath}）`);
+    throw new CliError("TEMPLATE_INVALID", `模板中的 package.json 不是合法 JSON（${pkgPath}）`);
   }
 
   pkg.name = meta.name;
@@ -147,21 +158,22 @@ export async function replacePackageMeta(projectDir: string, meta: ProjectMeta):
  * 初始化 git 仓库并做首次提交
  * 每一步单独处理失败原因：未装 git / 未配置用户信息 的提示不一样
  */
-export async function initGit(projectDir: string): Promise<void> {
-  const spinner = ora("正在初始化 Git 仓库...").start();
+export async function initGit(projectDir: string): Promise<GitResult> {
+  const progress = startSpinner("正在初始化 Git 仓库...");
+  const skipped: GitResult = { skipped: true, initialized: false, committed: false };
 
   try {
     execSync("git --version", { cwd: projectDir, stdio: "ignore" });
   } catch {
-    spinner.warn("未检测到 git 命令，已跳过 Git 初始化");
-    return;
+    progress.warn("未检测到 git 命令，已跳过 Git 初始化");
+    return skipped;
   }
 
   try {
     execSync("git init", { cwd: projectDir, stdio: "ignore" });
   } catch (err) {
-    spinner.warn(`Git 初始化失败，已跳过：${lastErrorLine(err)}`);
-    return;
+    progress.warn(`Git 初始化失败，已跳过：${lastErrorLine(err)}`);
+    return skipped;
   }
 
   try {
@@ -170,13 +182,15 @@ export async function initGit(projectDir: string): Promise<void> {
       cwd: projectDir,
       stdio: "ignore",
     });
-    spinner.succeed("Git 仓库初始化完成");
+    progress.succeed("Git 仓库初始化完成");
+    return { skipped: false, initialized: true, committed: true };
   } catch (err) {
-    spinner.warn("Git 仓库已创建，但首次提交失败");
+    progress.warn("Git 仓库已创建，但首次提交失败");
     logger.info(`原因：${lastErrorLine(err)}`);
     logger.info("通常是未配置 Git 用户信息，配置后可在项目目录执行:");
-    console.log(chalk.cyan('    git config user.name "你的名字" && git config user.email "you@example.com"'));
-    console.log(chalk.cyan('    git add -A && git commit -m "chore: init project"'));
+    print(chalk.cyan('    git config user.name "你的名字" && git config user.email "you@example.com"'));
+    print(chalk.cyan('    git add -A && git commit -m "chore: init project"'));
+    return { skipped: false, initialized: true, committed: false };
   }
 }
 
@@ -193,23 +207,23 @@ export async function installDeps(projectDir: string, pm: PackageManager): Promi
   const command = commands[pm];
   const timeout = installTimeout();
 
-  const spinner = ora(`正在使用 ${pm} 安装依赖（可能需要几分钟）...`).start();
+  const progress = startSpinner(`正在使用 ${pm} 安装依赖（可能需要几分钟）...`);
   const result = await runCommand(command, projectDir, timeout);
 
   if (result.ok) {
-    spinner.succeed("依赖安装完成");
+    progress.succeed("依赖安装完成");
     return true;
   }
 
-  spinner.fail("依赖安装失败");
+  progress.fail("依赖安装失败");
 
   if (result.timedOut) {
     logger.warn(`安装超过 ${formatDuration(timeout)}，已终止安装进程`);
   } else {
     const tail = stderrTail(result.stderr, 8);
     if (tail.length > 0) {
-      console.log(chalk.gray(`  安装日志（最后 ${tail.length} 行）:`));
-      for (const line of tail) console.log(chalk.gray(`    ${line}`));
+      print(chalk.gray(`  安装日志（最后 ${tail.length} 行）:`));
+      for (const line of tail) print(chalk.gray(`    ${line}`));
     }
   }
 
