@@ -1,8 +1,11 @@
-# EasyBuild Admin 开发文档
+# EasyBuild Admin CLI
 
-> 本文档旨在为开发者提供 **EasyBuild Admin** (易构) 前端项目的技术全景视图，涵盖架构设计、技术栈选型、开发规范及核心逻辑实现细节。
+> 本仓库是 **easybuild-admin** 脚手架（npm 包）：一条命令从官方模板创建 **EasyBuild Admin** (易构) 管理后台项目，自动锁定模板的正式发布版本、替换项目信息、初始化 Git 并安装依赖。
+>
+> 下方的「获取项目」「可用参数」是 CLI 用法；「技术栈」「核心架构」「开发规范」等章节描述的是脚手架生成出来的模板项目本身。
 
-- GitHub 仓库：[https://github.com/jackliuyijun/easybuild-admin](https://github.com/jackliuyijun/easybuild-admin)
+- CLI 源码仓库：[https://github.com/easybuild-jack/eba-cli](https://github.com/easybuild-jack/eba-cli)
+- 模板仓库：[https://github.com/easybuild-jack/easybuild-admin-front](https://github.com/easybuild-jack/easybuild-admin-front)
 - npm 包：[https://www.npmjs.com/package/easybuild-admin](https://www.npmjs.com/package/easybuild-admin)
 
 ---
@@ -38,6 +41,9 @@ npx easybuild-admin my-project -d "项目描述" --pm pnpm
 
 # 只下载模板，不初始化 git 也不安装依赖
 npx easybuild-admin my-project --skip-git --skip-install
+
+# 非交互执行（CI）：参数 + -y，全程不弹任何问题
+npx easybuild-admin my-project -d "项目描述" --pm yarn --skip-install -y
 ```
 
 **可用参数：**
@@ -46,10 +52,25 @@ npx easybuild-admin my-project --skip-git --skip-install
 |------|------|--------|
 | `[project-name]` | 项目名称 | 交互输入 |
 | `-d, --description <desc>` | 项目描述 | 交互输入 |
-| `--pm <pm>` | 包管理器：`yarn` / `pnpm` / `npm` | 交互选择 |
+| `--pm <pm>` | 包管理器：`yarn` / `pnpm` / `npm`，传其他值直接报错 | 交互选择 |
 | `--skip-install` | 跳过依赖安装 | `false` |
 | `--skip-git` | 跳过 Git 初始化 | `false` |
-| `--repo <repo>` | 自定义模板仓库（`owner/repo#branch`） | `jackliuyijun/easybuild-admin` |
+| `-y, --yes` | 全部使用默认值，不进行任何交互（用于 CI） | `false` |
+| `--repo <repo>` | 自定义模板仓库，可用 `#分支或tag` 指定版本 | `easybuild-jack/easybuild-admin-front` |
+
+> **交互与 CI**：命令行已给出的参数不会再提问；加 `-y` 会全部使用默认值（默认初始化 Git 并安装依赖，可用 `--skip-git` / `--skip-install` 关闭）。若 stdin 不是 TTY 且仍有问题需要交互，CLI 会直接报错并提示补齐参数，而不是卡住或崩溃。
+
+> **默认拉取最新发布版**：CLI 会先解析模板仓库的最新正式 Release tag（不含 pre-release / draft），再按该 tag 下载模板，保证脚手架产出的项目来自经过发布的稳定代码。若解析失败（离线或网络受限），会提示并使用仓库默认分支。需要某个具体版本或分支时，用 `--repo owner/repo#v1.0.0` 覆盖。
+
+> **常见提示的含义**：
+> - `未能获取最新发布版本，将使用仓库默认分支`：离线或 GitHub 不可达，仍会继续下载默认分支；
+> - `找不到模板的默认分支` / `找不到模板版本 "xxx"`：仓库地址写错、仓库为私有，或 `--repo` 里的分支 / tag 不存在；
+> - `模板中缺少 package.json`：`--repo` 指向的不是本模板仓库，已下载的文件会保留供检查；
+> - `-y 模式下不会自动覆盖`：目标目录已存在，先删除或换个项目名（交互模式下的覆盖会先清空该目录）；
+> - `依赖安装失败`：会附带安装日志末尾几行，便于定位网络 / 源的问题，之后可手动执行提示里的命令；
+> - `Git 仓库已创建，但首次提交失败`：通常是未配置 `user.name` / `user.email`，按提示配置后重新提交即可。
+
+> **安装超时**：依赖安装默认 5 分钟超时，超时会终止整个安装进程（不会留下后台安装）；网络较慢时可用环境变量延长，例如 `EASYBUILD_INSTALL_TIMEOUT_MS=600000`。
 
 ### 方式二：手动下载
 
@@ -57,7 +78,7 @@ npx easybuild-admin my-project --skip-git --skip-install
 
 ```bash
 # 下载代码
-git clone https://github.com/jackliuyijun/easybuild-admin.git my-project
+git clone https://github.com/easybuild-jack/easybuild-admin-front.git my-project
 
 # 进入目录并安装依赖
 cd my-project
@@ -243,3 +264,39 @@ yarn lint
 ✅ 7. 在 routes.ts 中配置菜单图标映射
 ✅ 8. 替换 public/favicon.ico
 ```
+
+---
+
+## 八、CLI 本仓库开发
+
+上面第一～七节讲的都是脚手架**生成出来的模板项目**；这一节才是本仓库（`easybuild-admin` 脚手架）本身。
+
+### 目录结构与职责
+
+```text
+src/
+├── index.ts              # CLI 入口：参数解析、交互、流程编排
+├── constants.ts          # 模板仓库地址、包管理器枚举
+└── helpers/
+    ├── download.ts       # degit 下载模板、owner/repo#ref 解析、错误翻译
+    ├── release.ts        # 解析模板仓库最新正式 Release tag
+    ├── setup.ts          # 改 package.json、git 初始化、安装依赖
+    ├── validate.ts       # 项目名校验、目标目录检测
+    └── logger.ts         # 终端输出样式
+test/helpers.test.ts      # node:test 单元测试（纯函数）
+eslint.config.js          # ESLint flat config
+.github/workflows/ci.yml  # typecheck → lint → test → build
+```
+
+### 常用命令
+
+```bash
+npm install        # 安装依赖
+npm run dev        # 源码方式直接运行 CLI（tsx src/index.ts）
+npm run build      # 打包到 dist/（tsup，ESM）
+npm run typecheck  # tsc --noEmit 类型检查
+npm run lint       # ESLint 静态检查
+npm test           # 单元测试（node:test）
+```
+
+> 发布前务必先 `npm run build`：`package.json` 的 `bin` 指向 `dist/index.js`，而 `dist/` 不进版本库。
