@@ -5,6 +5,7 @@
 > 下方的「获取项目」「可用参数」是 CLI 用法；「技术栈」「核心架构」「开发规范」等章节描述的是脚手架生成出来的模板项目本身。
 
 - CLI 源码仓库：[https://github.com/easybuild-jack/eba-cli](https://github.com/easybuild-jack/eba-cli)
+- 使用手册：[docs/前端脚手架使用手册.md](https://github.com/easybuild-jack/eba-cli/blob/main/docs/%E5%89%8D%E7%AB%AF%E8%84%9A%E6%89%8B%E6%9E%B6%E4%BD%BF%E7%94%A8%E6%89%8B%E5%86%8C.md)
 - 模板仓库：[https://github.com/easybuild-jack/easybuild-admin-front](https://github.com/easybuild-jack/easybuild-admin-front)
 - npm 包：[https://www.npmjs.com/package/easybuild-admin](https://www.npmjs.com/package/easybuild-admin)
 
@@ -95,15 +96,18 @@ yarn install
 
 | 领域 | 选型 | 说明 |
 |------|------|------|
-| **基础框架** | **Next.js 15 (App Router) + React 19** | 利用 React Server Components (RSC) 优化首屏并行渲染。 |
-| **语言** | **TypeScript 5.x** | 严格模式，确保从 API 定义到 UI 组件的端到端类型安全。 |
-| **样式体系** | **Tailwind CSS 3 + Lucide React** | 原子化 CSS，零运行时开销，配合 CSS Variables 实现动态主题。 |
+| **基础框架** | **Next.js 16 (App Router / Turbopack) + React 19** | 利用 React Server Components (RSC) 优化首屏并行渲染。 |
+| **语言** | **TypeScript 6.x** | 严格模式，确保从 API 定义到 UI 组件的端到端类型安全。 |
+| **样式体系** | **Tailwind CSS 4 + Lucide React** | 原子化 CSS，零运行时开销，配合 CSS Variables 实现动态主题。 |
 | **组件库** | **Shadcn/ui (Radix UI)** | 无头 (Headless) 组件驱动，源码级可控，符合 WAI-ARIA 无障碍标准。 |
-| **状态管理** | **Zustand** | 极简的状态流转，用于全局 UI 状态及同步的菜单数据管理。 |
-| **异步数据流** | **TanStack React Query v5** | 自动化的服务端状态同步、缓存失效及并发请求控制。 |
-| **表单方案** | **React Hook Form + Zod** | 基于非受控组件的高性能表单，通过 Zod 实现声明式 Schema 校验。 |
-| **表格解析** | **TanStack Table v8** | 配置化表格逻辑，支持虚拟滚动、列排序及复杂元数据渲染。 |
-| **包管理** | **Yarn 4 (Plug'n'Play)** | 提升依赖解析速度与磁盘占用率。 |
+| **状态管理** | **Zustand 5** | 极简的状态流转，用于全局 UI 状态及同步的菜单数据管理。 |
+| **数据通信** | **Axios + 统一拦截器** | 统一处理 Token 注入、多环境 BaseURL 切换与全局异常捕获。 |
+| **表单方案** | **React Hook Form 7 + Zod 4** | 基于非受控组件的高性能表单，通过 Zod 实现声明式 Schema 校验。 |
+| **表格方案** | **CustomTable（模板内置）** | 配置化表格组件，支持左右固定列、分页、行选择等。 |
+| **富文本 / 交互** | **Tiptap 3 + @dnd-kit** | 富文本编辑与拖拽排序能力。 |
+| **包管理** | **Yarn 4.7** | 模板使用 Yarn 4（`packageManager: yarn@4.7.0`）。 |
+
+> 上表对应模板 **v1.0.0**（生成项目时的默认版本），具体版本以生成项目的 `package.json` 为准。
 
 ---
 
@@ -111,12 +115,12 @@ yarn install
 
 项目采用 **六层解耦架构**，确保业务逻辑与基础能力的隔离：
 
-1.  **Middleware 层**：负责全局路由守卫、JWT Token 校验与非法请求重定向。
+1.  **访问控制层**：登录态校验与非法访问跳转（实现细节见生成项目的 `docs/开发文档.md`）。
 2.  **Layout 系统**：基于 Next.js Layout 特性，实现嵌套布局、侧边栏自适应及平滑的主题切换引擎。
 3.  **驱动架构 (Driver-Based)**：前端不维护静态路由表。菜单由后端下发 Resource Tree，前端运行时动态将其映射为应用路由。
 4.  **业务组件层 (Higher-Order Components)**：对 Shadcn/ui 进行二次封装，提供 `CustomForm` 和 `CustomTable` 等配置化组件，覆盖 90% 的 CRUD 场景。
 5.  **数据通信层 (API Internal)**：基于 Axios 的拦截器管道，统一处理 Token 注入、多环境 BaseURL 切换及全局异常捕获。
-6.  **状态映射层 (State Matrix)**：Zustand 负责跨组件的同步状态，React Query 负责 Server State 的本地缓存副本。
+6.  **状态映射层 (State Matrix)**：Zustand 负责跨组件的同步状态（菜单、主题、登录用户等），服务端数据由 Axios 请求层按需获取。
 
 ---
 
@@ -129,15 +133,15 @@ src/
 ├── components/      # 组件库
 │   ├── ui/          # 基类原子组件 (Shadcn/ui)
 │   ├── custom/      # 核心业务高级组件 (CustomForm, CustomTable 等)
-│   └── icons/       # 内部使用的图标资源
+│   └── layout/      # 布局组件（侧边栏、顶栏、面包屑等）
 ├── config/          # 全局静态配置文件 (如主题配色、环境常量)
 ├── constants/       # 业务常量声明 (枚举、响应码等)
-├── hooks/           # 通用的自定义 Hooks 及 React Query 的封装
+├── hooks/           # 通用的自定义 Hooks
 ├── lib/             # 外部库实例化 (Axios, Lucide, Crypto-JS 等)
+├── mock/            # 内置零后端 Mock 引擎（开发态接口模拟）
 ├── store/           # Zustand 状态切片定义
 ├── styles/          # Tailwind 指令、全局 CSS 变量、自定义 Animations
-├── types/           # 全局 TypeScript 类型声明 (.d.ts)
-└── middleware.ts    # Next.js 中间件逻辑
+└── types/           # 全局 TypeScript 类型声明 (.d.ts)
 ```
 
 ---
@@ -191,7 +195,7 @@ yarn build:prod
 yarn lint
 ```
 
-环境要求：`Node.js >= 18.17.0`。
+环境要求：CLI 自身需要 `Node.js >= 18.17.0`；生成的项目基于 Next.js 16，实际开发建议 `Node.js >= 20.9`（以模板 `package.json` 为准）。
 
 ---
 
@@ -284,6 +288,7 @@ src/
     ├── validate.ts       # 项目名校验、目标目录检测
     └── logger.ts         # 终端输出样式
 test/helpers.test.ts      # node:test 单元测试（纯函数）
+docs/                     # 使用手册（前端脚手架使用手册.md）
 eslint.config.js          # ESLint flat config
 .github/workflows/ci.yml  # typecheck → lint → test → build
 ```

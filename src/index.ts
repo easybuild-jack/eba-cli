@@ -69,7 +69,7 @@ program
   .action(async (argName: string | undefined, opts) => {
     console.log();
     console.log(chalk.bold.cyan("  🚀 EasyBuild Admin 项目脚手架"));
-    console.log(chalk.gray("  基于 Next.js 15 + React 19 + Shadcn/ui 的管理后台模板"));
+    console.log(chalk.gray("  基于 Next.js 16 + React 19 + Shadcn/ui 的管理后台模板"));
     console.log();
 
     try {

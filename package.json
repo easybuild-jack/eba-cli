@@ -1,6 +1,6 @@
 {
   "name": "easybuild-admin",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "CLI tool to scaffold EasyBuild Admin (易构) projects from a remote template",
   "type": "module",
   "bin": {
